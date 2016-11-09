@@ -11,10 +11,15 @@ import (
 	"github.com/urfave/negroni"
 )
 
+func applyRoutes(router *httprouter.Router) {
+}
+
 func run(ctx *cli.Context) error {
 	log.Print("Starting...")
 	log.Printf("Using config: %s", ctx.String("config"))
 	baseRouter := httprouter.New()
+
+	applyRoutes(baseRouter)
 
 	n := negroni.New()
 	n.Use(negroni.NewRecovery())
