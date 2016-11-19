@@ -10,7 +10,7 @@ import (
 type MattermostTextResponse struct {
 	Text     string `json:"text"`
 	Username string `json:"username"`
-	IconURL  string `json:"icon_url"`
+	IconURL  string `json:"icon_url,omitempty"`
 }
 
 func (m *MattermostTextResponse) Write(w http.ResponseWriter) {
