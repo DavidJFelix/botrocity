@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/davidjfelix/botrocity/modules/eightball"
-	"github.com/davidjfelix/botrocity/modules/giphy"
 	"github.com/davidjfelix/botrocity/modules/gygax"
 
 	"github.com/julienschmidt/httprouter"
@@ -18,7 +17,6 @@ import (
 func applyRoutes(router *httprouter.Router) {
 	router.POST("/outgoing/getEightball", eightball.HandleMagicEightballText)
 	router.POST("/outgoing/getRoll", gygax.HandleDiceRollText)
-	router.POST("/outgoing/getGiphy", giphy.HandleGiphySearchText)
 }
 
 func run(ctx *cli.Context) error {
