@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/davidjfelix/botrocity/responses"
+	"github.com/hostables/botrocity/responses"
 	"github.com/julienschmidt/httprouter"
 )
 

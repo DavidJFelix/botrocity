@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/davidjfelix/botrocity/modules/eightball"
-	"github.com/davidjfelix/botrocity/modules/gygax"
+	"github.com/hostables/botrocity/modules/eightball"
+	"github.com/hostables/botrocity/modules/gygax"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/tylerb/graceful"

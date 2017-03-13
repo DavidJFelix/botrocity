@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"net/http"
 
-	"github.com/davidjfelix/botrocity/responses"
+	"github.com/hostables/botrocity/responses"
 	"github.com/julienschmidt/httprouter"
 )
 
