@@ -1,10 +1,14 @@
-hash: dca6fdf1083cdf816b7fc72836e8646e0d0819ff583a0938779cba29f37ab3c5
-updated: 2017-03-13T12:29:44.807609536-04:00
+hash: 7e202fc0362aa57e1a4f68792377e9112dc8b3b072ca4d1e2f61fa0dad6a8a6d
+updated: 2017-03-13T12:40:17.861592746-04:00
 imports:
 - name: github.com/gorilla/mux
   version: 392c28fe23e1c45ddba891b0320b3b5df220beea
 - name: github.com/julienschmidt/httprouter
   version: 8c199fb6259ffc1af525cc3ad52ee60ba8359669
+- name: github.com/mattermost/platform
+  version: 06a7c3ba8e054237c44e8b1586c76d00c1cffb67
+  subpackages:
+  - model
 - name: github.com/tylerb/graceful
   version: d72b0151351a13d0421b763b88f791469c4f5dc7
 - name: github.com/urfave/cli

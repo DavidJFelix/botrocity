@@ -1,0 +1,438 @@
+// Copyright (c) 2016 Mattermost, Inc. All Rights Reserved.
+// See License.txt for license information.
+
+import AppDispatcher from 'dispatcher/app_dispatcher.jsx';
+
+import ChannelStore from 'stores/channel_store.jsx';
+import PostStore from 'stores/post_store.jsx';
+import UserStore from 'stores/user_store.jsx';
+
+import {loadStatusesForChannel} from 'actions/status_actions.jsx';
+import {loadNewDMIfNeeded, loadNewGMIfNeeded} from 'actions/user_actions.jsx';
+import {trackEvent} from 'actions/diagnostics_actions.jsx';
+
+import Client from 'client/web_client.jsx';
+import * as AsyncClient from 'utils/async_client.jsx';
+
+import Constants from 'utils/constants.jsx';
+const ActionTypes = Constants.ActionTypes;
+const Preferences = Constants.Preferences;
+
+export function handleNewPost(post, msg) {
+    let websocketMessageProps = null;
+    if (msg) {
+        websocketMessageProps = msg.data;
+    }
+
+    if (msg && msg.data) {
+        if (msg.data.channel_type === Constants.DM_CHANNEL) {
+            loadNewDMIfNeeded(post.user_id);
+        } else if (msg.data.channel_type === Constants.GM_CHANNEL) {
+            loadNewGMIfNeeded(post.channel_id, post.user_id);
+        }
+    }
+
+    if (post.root_id && PostStore.getPost(post.channel_id, post.root_id) == null) {
+        Client.getPost(
+            post.channel_id,
+            post.root_id,
+            (data) => {
+                AppDispatcher.handleServerAction({
+                    type: ActionTypes.RECEIVED_POSTS,
+                    id: post.channel_id,
+                    numRequested: 0,
+                    post_list: data
+                });
+
+                // Required to update order
+                AppDispatcher.handleServerAction({
+                    type: ActionTypes.RECEIVED_POST,
+                    post,
+                    websocketMessageProps
+                });
+
+                loadProfilesForPosts(data.posts);
+            },
+            (err) => {
+                AsyncClient.dispatchError(err, 'getPost');
+            }
+        );
+
+        return;
+    }
+
+    AppDispatcher.handleServerAction({
+        type: ActionTypes.RECEIVED_POST,
+        post,
+        websocketMessageProps
+    });
+}
+
+export function flagPost(postId) {
+    trackEvent('api', 'api_posts_flagged');
+    AsyncClient.savePreference(Preferences.CATEGORY_FLAGGED_POST, postId, 'true');
+}
+
+export function unflagPost(postId, success) {
+    trackEvent('api', 'api_posts_unflagged');
+    const pref = {
+        user_id: UserStore.getCurrentId(),
+        category: Preferences.CATEGORY_FLAGGED_POST,
+        name: postId
+    };
+    AsyncClient.deletePreferences([pref], success);
+}
+
+export function getFlaggedPosts() {
+    Client.getFlaggedPosts(0, Constants.POST_CHUNK_SIZE,
+        (data) => {
+            AppDispatcher.handleServerAction({
+                type: ActionTypes.RECEIVED_SEARCH_TERM,
+                term: null,
+                do_search: false,
+                is_mention_search: false
+            });
+
+            AppDispatcher.handleServerAction({
+                type: ActionTypes.RECEIVED_SEARCH,
+                results: data,
+                is_flagged_posts: true
+            });
+
+            loadProfilesForPosts(data.posts);
+        },
+        (err) => {
+            AsyncClient.dispatchError(err, 'getFlaggedPosts');
+        }
+    );
+}
+
+export function loadPosts(channelId = ChannelStore.getCurrentId(), isPost = false) {
+    const postList = PostStore.getAllPosts(channelId);
+    const latestPostTime = PostStore.getLatestPostFromPageTime(channelId);
+
+    if (
+        !postList || Object.keys(postList).length === 0 ||
+        (!isPost && postList.order.length < Constants.POST_CHUNK_SIZE) ||
+        latestPostTime === 0
+    ) {
+        loadPostsPage(channelId, Constants.POST_CHUNK_SIZE, isPost);
+        return;
+    }
+
+    Client.getPosts(
+        channelId,
+        latestPostTime,
+        (data) => {
+            AppDispatcher.handleServerAction({
+                type: ActionTypes.RECEIVED_POSTS,
+                id: channelId,
+                before: true,
+                numRequested: 0,
+                post_list: data,
+                isPost
+            });
+
+            loadProfilesForPosts(data.posts);
+            loadStatusesForChannel(channelId);
+        },
+        (err) => {
+            AsyncClient.dispatchError(err, 'loadPosts');
+        }
+    );
+}
+
+export function loadPostsPage(channelId = ChannelStore.getCurrentId(), max = Constants.POST_CHUNK_SIZE, isPost = false) {
+    const postList = PostStore.getAllPosts(channelId);
+
+    // if we already have more than POST_CHUNK_SIZE posts,
+    //   let's get the amount we have but rounded up to next multiple of POST_CHUNK_SIZE,
+    //   with a max
+    let numPosts = Math.min(max, Constants.POST_CHUNK_SIZE);
+    if (postList && postList.order.length > 0) {
+        numPosts = Math.min(max, Constants.POST_CHUNK_SIZE * Math.ceil(postList.order.length / Constants.POST_CHUNK_SIZE));
+    }
+
+    Client.getPostsPage(
+        channelId,
+        0,
+        numPosts,
+        (data) => {
+            AppDispatcher.handleServerAction({
+                type: ActionTypes.RECEIVED_POSTS,
+                id: channelId,
+                before: true,
+                numRequested: numPosts,
+                checkLatest: true,
+                checkEarliest: true,
+                post_list: data,
+                isPost
+            });
+
+            loadProfilesForPosts(data.posts);
+            loadStatusesForChannel(channelId);
+        },
+        (err) => {
+            AsyncClient.dispatchError(err, 'loadPostsPage');
+        }
+    );
+}
+
+export function loadPostsBefore(postId, offset, numPost, isPost) {
+    const channelId = ChannelStore.getCurrentId();
+    if (channelId == null) {
+        return;
+    }
+
+    Client.getPostsBefore(
+        channelId,
+        postId,
+        offset,
+        numPost,
+        (data) => {
+            AppDispatcher.handleServerAction({
+                type: ActionTypes.RECEIVED_POSTS,
+                id: channelId,
+                before: true,
+                checkEarliest: true,
+                numRequested: numPost,
+                post_list: data,
+                isPost
+            });
+
+            loadProfilesForPosts(data.posts);
+            loadStatusesForChannel(channelId);
+        },
+        (err) => {
+            AsyncClient.dispatchError(err, 'loadPostsBefore');
+        }
+    );
+}
+
+export function loadPostsAfter(postId, offset, numPost, isPost) {
+    const channelId = ChannelStore.getCurrentId();
+    if (channelId == null) {
+        return;
+    }
+
+    Client.getPostsAfter(
+        channelId,
+        postId,
+        offset,
+        numPost,
+        (data) => {
+            AppDispatcher.handleServerAction({
+                type: ActionTypes.RECEIVED_POSTS,
+                id: channelId,
+                before: false,
+                numRequested: numPost,
+                post_list: data,
+                isPost
+            });
+
+            loadProfilesForPosts(data.posts);
+            loadStatusesForChannel(channelId);
+        },
+        (err) => {
+            AsyncClient.dispatchError(err, 'loadPostsAfter');
+        }
+    );
+}
+
+export function loadProfilesForPosts(posts) {
+    const profilesToLoad = {};
+    for (const pid in posts) {
+        if (!posts.hasOwnProperty(pid)) {
+            continue;
+        }
+
+        const post = posts[pid];
+        if (!UserStore.hasProfile(post.user_id)) {
+            profilesToLoad[post.user_id] = true;
+        }
+    }
+
+    const list = Object.keys(profilesToLoad);
+    if (list.length === 0) {
+        return;
+    }
+
+    AsyncClient.getProfilesByIds(list);
+}
+
+export function addReaction(channelId, postId, emojiName) {
+    const reaction = {
+        post_id: postId,
+        user_id: UserStore.getCurrentId(),
+        emoji_name: emojiName
+    };
+
+    AsyncClient.saveReaction(channelId, reaction);
+}
+
+export function removeReaction(channelId, postId, emojiName) {
+    const reaction = {
+        post_id: postId,
+        user_id: UserStore.getCurrentId(),
+        emoji_name: emojiName
+    };
+
+    AsyncClient.deleteReaction(channelId, reaction);
+}
+
+const postQueue = [];
+
+export function queuePost(post, doLoadPost, success, error) {
+    postQueue.push(
+        createPost.bind(
+            this,
+            post,
+            doLoadPost,
+            (data) => {
+                if (success) {
+                    success(data);
+                }
+
+                postSendComplete();
+            },
+            (err) => {
+                if (error) {
+                    error(err);
+                }
+
+                postSendComplete();
+            }
+        )
+    );
+
+    sendFirstPostInQueue();
+}
+
+// Remove the completed post from the queue and send the next one
+function postSendComplete() {
+    postQueue.shift();
+    sendNextPostInQueue();
+}
+
+// Start sending posts if a new queue has started
+function sendFirstPostInQueue() {
+    if (postQueue.length === 1) {
+        sendNextPostInQueue();
+    }
+}
+
+// Send the next post in the queue if there is one
+function sendNextPostInQueue() {
+    const nextPostAction = postQueue[0];
+    if (nextPostAction) {
+        nextPostAction();
+    }
+}
+
+export function createPost(post, doLoadPost, success, error) {
+    Client.createPost(post,
+        (data) => {
+            if (doLoadPost) {
+                loadPosts(post.channel_id);
+            } else {
+                PostStore.removePendingPost(post.pending_post_id);
+            }
+
+            AppDispatcher.handleServerAction({
+                type: ActionTypes.RECEIVED_POST,
+                post: data
+            });
+
+            if (success) {
+                success(data);
+            }
+        },
+
+        (err) => {
+            if (err.id === 'api.post.create_post.root_id.app_error') {
+                PostStore.removePendingPost(post.pending_post_id);
+            } else {
+                post.state = Constants.POST_FAILED;
+                PostStore.updatePendingPost(post);
+            }
+
+            if (error) {
+                error(err);
+            }
+        }
+    );
+}
+
+export function updatePost(post, success, isPost) {
+    Client.updatePost(
+        post,
+        () => {
+            loadPosts(post.channel_id, isPost);
+
+            if (success) {
+                success();
+            }
+        },
+        (err) => {
+            AsyncClient.dispatchError(err, 'updatePost');
+        });
+}
+
+export function removePostFromStore(post) {
+    PostStore.removePost(post);
+    PostStore.emitChange();
+}
+
+export function deletePost(channelId, post, success, error) {
+    Client.deletePost(
+        channelId,
+        post.id,
+        () => {
+            removePostFromStore(post);
+            if (post.id === PostStore.getSelectedPostId()) {
+                AppDispatcher.handleServerAction({
+                    type: ActionTypes.RECEIVED_POST_SELECTED,
+                    postId: null
+                });
+            }
+
+            if (success) {
+                success();
+            }
+        },
+        (err) => {
+            AsyncClient.dispatchError(err, 'deletePost');
+
+            if (error) {
+                error(err);
+            }
+        }
+    );
+}
+
+export function performSearch(terms, isMentionSearch, success, error) {
+    Client.search(
+        terms,
+        isMentionSearch,
+        (data) => {
+            AppDispatcher.handleServerAction({
+                type: ActionTypes.RECEIVED_SEARCH,
+                results: data,
+                is_mention_search: isMentionSearch
+            });
+
+            loadProfilesForPosts(data.posts);
+
+            if (success) {
+                success(data);
+            }
+        },
+        (err) => {
+            AsyncClient.dispatchError(err, 'search');
+
+            if (error) {
+                error(err);
+            }
+        }
+    );
+}
