@@ -12,3 +12,4 @@ import:
   version: ^3.7.0-rc4
   subpackages:
   - model
+- package: github.com/peterhellberg/giphy
