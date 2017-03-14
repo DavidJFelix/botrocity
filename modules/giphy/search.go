@@ -16,7 +16,7 @@ func init() {
 	g.Rating = "pg"
 }
 
-func searchGiphyAPI(terms []string) ([]giphy.Data) {
+func SearchGiphyAPI(terms []string) ([]giphy.Data) {
 	search, err := g.Search(terms)
 	if err != nil {
 		log.Println("Error: ", err)

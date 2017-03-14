@@ -15,6 +15,7 @@ import (
 	"github.com/mattermost/platform/model"
 	"strings"
 	"regexp"
+	"github.com/hostables/botrocity/modules/giphy"
 )
 
 // TODO: Move me somewhere nicer
@@ -115,6 +116,14 @@ func HandleWebSocketResponse(event *model.WebSocketEvent) {
 			client.CreatePost(&model.Post{
 				ChannelId: event.Broadcast.ChannelId,
 				Message: "I am here to serve.",
+			})
+		} else if matched, _ := regexp.MatchString(`^gif:.*`, post.Message); matched {
+			rawTerms := strings.TrimPrefix(post.Message, "gif: ")
+			terms := strings.Split(rawTerms, " ")
+			data := giphy.SearchGiphyAPI(terms)
+			client.CreatePost(&model.Post{
+				ChannelId: event.Broadcast.ChannelId,
+				Message: data[0].Images.Original.URL,
 			})
 		}
 	}
