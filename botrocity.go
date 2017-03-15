@@ -132,6 +132,13 @@ func HandleWebSocketResponse(event *model.WebSocketEvent) {
 				ChannelId: event.Broadcast.ChannelId,
 				Message:   data[0].Images.Original.URL,
 			})
+		} else if matched, _ := regexp.MatchString(`^gygax:.*`, post.Message); matched {
+			rawMsg := strings.TrimPrefix(post.Message, "gygax: ")
+			result := gygax.RollDice(rawMsg)
+			client.CreatePost(&model.Post{
+				ChannelId: event.Broadcast.ChannelId,
+				Message: result,
+			})
 		}
 		for k, v := range outgoingConf {
 			if matched, _ := regexp.MatchString(k, post.Message); matched {

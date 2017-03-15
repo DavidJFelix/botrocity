@@ -71,6 +71,15 @@ func getDiceRollMessage(dice []int) string {
 	return text
 }
 
+func RollDice(message string) string {
+	dice := parseTextForDice(message)
+	if len(dice) < 1 {
+		return "I couldn't understand your request"
+	}
+	result := getDiceRollMessage(dice)
+	return result
+}
+
 // HandleDiceRollText provides an HTTP handler to respond to dice rolls
 func HandleDiceRollText(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	text := ""
