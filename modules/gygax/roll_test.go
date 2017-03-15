@@ -8,7 +8,6 @@ import (
 
 func TestParseTextForDice(t *testing.T) {
   t.Parallel()
-  if !()
   if !(reflect.DeepEqual(parseTextForDice("d10 d20"), []int{10, 20})) {
     t.Fail()
   }

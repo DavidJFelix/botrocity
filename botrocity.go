@@ -4,10 +4,8 @@ import (
 	"log"
 	"os"
 	"time"
-
 	"github.com/hostables/botrocity/modules/eightball"
 	"github.com/hostables/botrocity/modules/gygax"
-
 	"github.com/julienschmidt/httprouter"
 	"github.com/tylerb/graceful"
 	"github.com/urfave/cli"
@@ -16,12 +14,23 @@ import (
 	"strings"
 	"regexp"
 	"github.com/hostables/botrocity/modules/giphy"
+	"net/http"
+	"net/url"
+	"encoding/json"
 )
 
 // TODO: Move me somewhere nicer
 var client *model.Client
 var webSocketClient *model.WebSocketClient
 var debuggingChannel *model.Channel
+
+var outgoingConf map[string]string
+
+func init() {
+	outgoingConf = map[string]string{}
+}
+
+
 ////
 
 func applyRoutes(router *httprouter.Router) {
@@ -33,7 +42,6 @@ func run(ctx *cli.Context) error {
 	log.Print("Starting...")
 	log.Printf("Using config: %s", ctx.String("config"))
 	baseRouter := httprouter.New()
-
 
 	// FIXME: handle golem being added to channels. it doesn't currently pick those up
 
@@ -69,7 +77,7 @@ func run(ctx *cli.Context) error {
 	//})
 
 	// FIXME, do stuff about this failing?
-	webSocketClient, _ := model.NewWebSocketClient("ws://" + ctx.String("server") + ":8065", client.AuthToken)
+	webSocketClient, _ := model.NewWebSocketClient("ws://"+ctx.String("server")+":8065", client.AuthToken)
 
 	webSocketClient.Listen()
 
@@ -82,7 +90,6 @@ func run(ctx *cli.Context) error {
 			}
 		}
 	}()
-
 
 	defer func() {
 		if webSocketClient != nil {
@@ -104,7 +111,7 @@ func run(ctx *cli.Context) error {
 }
 
 func HandleWebSocketResponse(event *model.WebSocketEvent) {
-	// Lets only reponded to messaged posted events
+	// Lets only respond to message posted events
 	if event.Event != model.WEBSOCKET_EVENT_POSTED {
 		log.Println("Event: ", event.Event)
 		return
@@ -115,7 +122,7 @@ func HandleWebSocketResponse(event *model.WebSocketEvent) {
 		if matched, _ := regexp.MatchString(`(?:^|\W)golem(?:$|\W)`, post.Message); matched {
 			client.CreatePost(&model.Post{
 				ChannelId: event.Broadcast.ChannelId,
-				Message: "I am here to serve.",
+				Message:   "I am here to serve.",
 			})
 		} else if matched, _ := regexp.MatchString(`^gif:.*`, post.Message); matched {
 			rawTerms := strings.TrimPrefix(post.Message, "gif: ")
@@ -123,8 +130,34 @@ func HandleWebSocketResponse(event *model.WebSocketEvent) {
 			data := giphy.SearchGiphyAPI(terms)
 			client.CreatePost(&model.Post{
 				ChannelId: event.Broadcast.ChannelId,
-				Message: data[0].Images.Original.URL,
+				Message:   data[0].Images.Original.URL,
 			})
+		}
+		for k, v := range outgoingConf {
+			if matched, _ := regexp.MatchString(k, post.Message); matched {
+				log.Println("We matched it")
+				resp, _ := http.PostForm(v, url.Values{
+					"channel_id": {event.Broadcast.ChannelId},
+					//"channel_name": {},
+					//"team_domain": {},
+					"team_id": {event.Broadcast.TeamId},
+					"post_id": {post.Id},
+					"text":    {post.Message},
+					//timestamp=1445532266&
+					"token":        {"4"},
+					"trigger_word": {"gif:"},
+					"user_id":      {event.Broadcast.UserId},
+					//user_name=somename
+				})
+				var obj map[string]interface{}
+				decoder := json.NewDecoder(resp.Body)
+				decoder.Decode(&obj)
+				text := obj["text"].(string)
+				client.CreatePost(&model.Post{
+					ChannelId: event.Broadcast.ChannelId,
+					Message:   text,
+				})
+			}
 		}
 	}
 }
@@ -147,12 +180,12 @@ func main() {
 			Usage: "The config file location.",
 		},
 		cli.StringFlag{
-			Name: "server, s",
+			Name:  "server, s",
 			Value: "localhost:8080",
 			Usage: "The mattermost server.",
 		},
 		cli.StringFlag{
-			Name: "team, t",
+			Name:  "team, t",
 			Value: "bots",
 			Usage: "The team the bot should listen on.",
 		},
