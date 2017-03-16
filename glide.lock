@@ -1,5 +1,5 @@
-hash: 65cf25d35e57d44c4ef27853e775f1d21873114864d861672b79821ac6326c32
-updated: 2017-03-16T14:53:27.156028572-04:00
+hash: 69bb09b4cfebd839574d113910aa3e3a04e93b0c5e3b4c5a4d73f1662f4f23ce
+updated: 2017-03-16T16:12:27.922976532-04:00
 imports:
 - name: github.com/alecthomas/log4go
   version: e5dc62318d9bd58682f1dceb53a4b24e8253682f
@@ -51,6 +51,8 @@ imports:
   - mem
 - name: github.com/spf13/cast
   version: ce135a4ebeee6cfe9a26c93ee0d37825f26113c7
+- name: github.com/spf13/cobra
+  version: 7be4beda01ec05d0b93d80b3facd2b6f44080d94
 - name: github.com/spf13/jwalterweatherman
   version: fa7ca7e836cf3a8bb4ebf799f472c12d7e903d66
 - name: github.com/spf13/pflag
