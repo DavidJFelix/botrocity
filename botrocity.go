@@ -23,6 +23,7 @@ import (
 var client *model.Client
 var webSocketClient *model.WebSocketClient
 var debuggingChannel *model.Channel
+var adminChannel *model.Channel
 
 var outgoingConf map[string]string
 
@@ -76,6 +77,14 @@ func run(ctx *cli.Context) error {
 	//	Message: "Golem online",
 	//})
 
+	// Set admin channel
+	for _, channel := range *channelList {
+		if channel.Name == "botrocity" {
+			adminChannel = channel
+			break
+		}
+	}
+
 	// FIXME, do stuff about this failing?
 	webSocketClient, _ := model.NewWebSocketClient("ws://"+ctx.String("server")+":8065", client.AuthToken)
 
@@ -113,17 +122,67 @@ func run(ctx *cli.Context) error {
 func HandleWebSocketResponse(event *model.WebSocketEvent) {
 	// Lets only respond to message posted events
 	if event.Event != model.WEBSOCKET_EVENT_POSTED {
-		log.Println("Event: ", event.Event)
+		log.Println("Channel:", event.Broadcast.ChannelId, "::", "Event:", event.Event)
 		return
 	}
 
 	post := model.PostFromJson(strings.NewReader(event.Data["post"].(string)))
 	if post != nil {
 		if matched, _ := regexp.MatchString(`(?:^|\W)golem(?:$|\W)`, post.Message); matched {
-			client.CreatePost(&model.Post{
-				ChannelId: event.Broadcast.ChannelId,
-				Message:   "I am here to serve.",
-			})
+			// TODO: Refactor this nightmare
+			if event.Broadcast.ChannelId == adminChannel.Id {
+				cmdStr := strings.TrimPrefix(post.Message, "golem: ")
+				cmdArr := strings.Split(cmdStr, " ")
+				if len(cmdArr) == 2 && cmdArr[0] == "leave" {
+					result, err := client.GetChannels("")
+					if err != nil {
+						log.Println(err)
+						return;
+					}
+					channels := result.Data.(*model.ChannelList)
+					var channelToLeave = model.Channel{}
+					for _, channel := range *channels {
+						if channel.Name == cmdArr[1] {
+							channelToLeave = *channel;
+						}
+					}
+					log.Println("Leaving:", channelToLeave.Name)
+					result, err = client.LeaveChannel(channelToLeave.Id)
+					if err != nil {
+						log.Println(err)
+						client.CreatePost(&model.Post{
+							ChannelId: event.Broadcast.ChannelId,
+							Message: "Couldn't leave " + cmdArr[1],
+						})
+					} else {
+						client.CreatePost(&model.Post{
+							ChannelId: event.Broadcast.ChannelId,
+							Message: "I left " + cmdArr[1],
+						})
+					}
+				} else if len(cmdArr) == 1 && cmdArr[0] == "channels" {
+					result, err := client.GetChannels("")
+					if err != nil {
+						log.Println(err)
+						return;
+					}
+					post := "Channels I belong to: \n"
+					channels := result.Data.(*model.ChannelList)
+					for _, channel := range *channels {
+						post += channel.Name
+						post += "\n"
+					}
+					client.CreatePost(&model.Post{
+						ChannelId: event.Broadcast.ChannelId,
+						Message: post,
+					})
+				}
+			} else {
+				client.CreatePost(&model.Post{
+					ChannelId: event.Broadcast.ChannelId,
+					Message: "I am here to serve",
+				})
+			}
 		} else if matched, _ := regexp.MatchString(`^gif:.*`, post.Message); matched {
 			rawTerms := strings.TrimPrefix(post.Message, "gif: ")
 			terms := strings.Split(rawTerms, " ")
