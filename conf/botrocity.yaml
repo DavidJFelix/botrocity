@@ -1,3 +1,12 @@
+server: http://host:port/endpoint
+team: myteam
+bot:
+  email: example@example.com
+  password: changeme
+debug-channel: bots
+default-channels:
+  - channel
+  - other channel
 modules:
   gygax:
     trigger: ^gygax:.*
