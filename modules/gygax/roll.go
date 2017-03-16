@@ -78,7 +78,7 @@ func RollDice(message string) string {
 		result += "I didn't see any dice... rolling all of them for you.\n"
 		dice = []int{2, 4, 6, 8, 10, 12, 16, 20, 32, 64, 100}
 	}
-	result := getDiceRollMessage(dice)
+	result += getDiceRollMessage(dice)
 	return result
 }
 

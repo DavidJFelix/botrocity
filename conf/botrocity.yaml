@@ -1,0 +1,25 @@
+modules:
+  gygax:
+    trigger: ^gygax:.*
+    function: gygax
+  roll:
+    trigger: ^roll:.*
+    function: roll
+slash-modules:
+  roll:
+    command: /roll
+    ephemeral: true
+    function: roll
+outbound-proxy:
+  genew:
+    trigger: ^genew:.*
+    url: http://host:port/endpoint
+slash-outbound:
+  genew:
+    command: /genew
+    ephemeral: true
+    url: http://host:port/endpoint
+slash-proxy:
+  genew:
+    command: /genew
+    url: http://host:port/endpoint

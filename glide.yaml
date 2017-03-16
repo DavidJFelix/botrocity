@@ -13,3 +13,4 @@ import:
   subpackages:
   - model
 - package: github.com/peterhellberg/giphy
+- package: github.com/spf13/viper
