@@ -129,23 +129,14 @@ func HandleWebSocketResponse(event *model.WebSocketEvent) {
 	post := model.PostFromJson(strings.NewReader(event.Data["post"].(string)))
 	if post != nil {
 		if matched, _ := regexp.MatchString(`(?:^|\W)golem(?:$|\W)`, post.Message); matched {
+
 			// TODO: Refactor this nightmare
 			if event.Broadcast.ChannelId == adminChannel.Id {
 				cmdStr := strings.TrimPrefix(post.Message, "golem: ")
 				cmdArr := strings.Split(cmdStr, " ")
 				if len(cmdArr) == 2 && cmdArr[0] == "leave" {
-					result, err := client.GetChannels("")
-					if err != nil {
-						log.Println(err)
-						return;
-					}
-					channels := result.Data.(*model.ChannelList)
-					var channelToLeave = model.Channel{}
-					for _, channel := range *channels {
-						if channel.Name == cmdArr[1] {
-							channelToLeave = *channel;
-						}
-					}
+					result, err := client.GetChannelByName(cmdArr[1])
+					channelToLeave := result.Data.(*model.Channel)
 					log.Println("Leaving:", channelToLeave.Name)
 					result, err = client.LeaveChannel(channelToLeave.Id)
 					if err != nil {
@@ -176,6 +167,20 @@ func HandleWebSocketResponse(event *model.WebSocketEvent) {
 						ChannelId: event.Broadcast.ChannelId,
 						Message: post,
 					})
+				} else if len(cmdArr) == 2 && cmdArr[0] == "join" {
+					_, err := client.JoinChannelByName(cmdArr[1])
+					if err != nil {
+						log.Println(err)
+						client.CreatePost(&model.Post{
+							ChannelId: event.Broadcast.ChannelId,
+							Message: "Couldn't join " + cmdArr[1],
+						})
+					} else {
+						client.CreatePost(&model.Post{
+							ChannelId: event.Broadcast.ChannelId,
+							Message: "I joined " + cmdArr[1],
+						})
+					}
 				}
 			} else {
 				client.CreatePost(&model.Post{
