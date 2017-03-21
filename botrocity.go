@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"encoding/json"
+	"github.com/hostables/botrocity/modules/admin"
 )
 
 // TODO: Move me somewhere nicer
@@ -128,67 +129,7 @@ func HandleWebSocketResponse(event *model.WebSocketEvent) {
 
 	post := model.PostFromJson(strings.NewReader(event.Data["post"].(string)))
 	if post != nil {
-		if matched, _ := regexp.MatchString(`(?:^|\W)golem(?:$|\W)`, post.Message); matched {
-
-			// TODO: Refactor this nightmare
-			if event.Broadcast.ChannelId == adminChannel.Id {
-				cmdStr := strings.TrimPrefix(post.Message, "golem: ")
-				cmdArr := strings.Split(cmdStr, " ")
-				if len(cmdArr) == 2 && cmdArr[0] == "leave" {
-					result, err := client.GetChannelByName(cmdArr[1])
-					channelToLeave := result.Data.(*model.Channel)
-					log.Println("Leaving:", channelToLeave.Name)
-					result, err = client.LeaveChannel(channelToLeave.Id)
-					if err != nil {
-						log.Println(err)
-						client.CreatePost(&model.Post{
-							ChannelId: event.Broadcast.ChannelId,
-							Message: "Couldn't leave " + cmdArr[1],
-						})
-					} else {
-						client.CreatePost(&model.Post{
-							ChannelId: event.Broadcast.ChannelId,
-							Message: "I left " + cmdArr[1],
-						})
-					}
-				} else if len(cmdArr) == 1 && cmdArr[0] == "channels" {
-					result, err := client.GetChannels("")
-					if err != nil {
-						log.Println(err)
-						return;
-					}
-					post := "Channels I belong to: \n"
-					channels := result.Data.(*model.ChannelList)
-					for _, channel := range *channels {
-						post += channel.Name
-						post += "\n"
-					}
-					client.CreatePost(&model.Post{
-						ChannelId: event.Broadcast.ChannelId,
-						Message: post,
-					})
-				} else if len(cmdArr) == 2 && cmdArr[0] == "join" {
-					_, err := client.JoinChannelByName(cmdArr[1])
-					if err != nil {
-						log.Println(err)
-						client.CreatePost(&model.Post{
-							ChannelId: event.Broadcast.ChannelId,
-							Message: "Couldn't join " + cmdArr[1],
-						})
-					} else {
-						client.CreatePost(&model.Post{
-							ChannelId: event.Broadcast.ChannelId,
-							Message: "I joined " + cmdArr[1],
-						})
-					}
-				}
-			} else {
-				client.CreatePost(&model.Post{
-					ChannelId: event.Broadcast.ChannelId,
-					Message: "I am here to serve",
-				})
-			}
-		} else if matched, _ := regexp.MatchString(`^gif:.*`, post.Message); matched {
+		if matched, _ := regexp.MatchString(`^gif:.*`, post.Message); matched {
 			rawTerms := strings.TrimPrefix(post.Message, "gif: ")
 			terms := strings.Split(rawTerms, " ")
 			data := giphy.SearchGiphyAPI(terms)
@@ -203,6 +144,21 @@ func HandleWebSocketResponse(event *model.WebSocketEvent) {
 				ChannelId: event.Broadcast.ChannelId,
 				Message: result,
 			})
+		} else if matched, _ := regexp.MatchString(`(?:^|\W)golem(?:$|\W)`, post.Message); matched {
+			if event.Broadcast.ChannelId == adminChannel.Id &&
+				(strings.HasPrefix(post.Message, "golem: ") || strings.HasPrefix(post.Message, "golem ")) {
+				cmdStr := strings.TrimPrefix(strings.TrimPrefix(post.Message, "golem: "), "golem ")
+				msg := admin.HandleCommand(client, cmdStr)
+				client.CreatePost(&model.Post{
+					ChannelId: event.Broadcast.ChannelId,
+					Message: msg,
+				})
+			} else {
+				client.CreatePost(&model.Post{
+					ChannelId: event.Broadcast.ChannelId,
+					Message: "I am here to serve",
+				})
+			}
 		}
 		for k, v := range outgoingConf {
 			if matched, _ := regexp.MatchString(k, post.Message); matched {
